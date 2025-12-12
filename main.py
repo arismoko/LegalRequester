@@ -1,5 +1,10 @@
-from Counties.Ramsey import RamseyCountyScraper
-from Counties.Anoka import AnokaCountyScraper
+from Counties.BeaconSchneiderCorp.scraper import BeaconSchneiderCorpCountyScraper
+from Counties.Anoka.scraper import AnokaCountyScraper
+from Counties.Washington.scraper import WashingtonCountyScraper
+from Counties.CrowWing.scraper import CrowWingCountyScraper
+from Counties.Hennepin.scraper import HennepinCountyScraper
+from Counties.Clearwater.scraper import ClearwaterCountyScraper
+from search import FindPropertyDetails, update_all_scraper_data
 
 def print_results(data, search_term):
     if not data:
@@ -13,24 +18,33 @@ def print_results(data, search_term):
             print(item.to_dict())
 
 if __name__ == "__main__":
-    #Single Response
-    print("--- Ramsey County (Single) ---")
-    scraper = RamseyCountyScraper()
-    # Note: The example " 2346 Belmont" might need trimming or specific handling if the scraper expects clean input
-    data = scraper.search_by_address("2346", "Belmont")
-    print_results(data, "2346 Belmont")
+    print("\n--- Updating Scraper Data ---")
+    update_all_scraper_data()
 
-    #Multiple Responses
-    print("\n--- Ramsey County (Multiple) ---")
-    data = scraper.search_by_address("3150", "GLEN OAKS")
-    print_results(data, "3150 GLEN OAKS")
-    
-    print("\n--- Anoka County (Single) ---")
-    anoka_scraper = AnokaCountyScraper()
-    # Using the example from the curl request: 4333 117th
-    anoka_data = anoka_scraper.search_by_address("4333", "117th")
-    print_results(anoka_data, "4333 117th")
+    print("\n--- Testing FindPropertyDetails ---")
+    # Test with the requested address
+    addr = "12575 IRISH AVE N"
+    print(f"\nSearching for: {addr}")
+    results = FindPropertyDetails(addr)
+    if not results:
+        print("No results found.")
+    elif isinstance(results, dict):
+        for key, items in results.items():
+            print(f"\n--- {key} ---")
+            if isinstance(items, list):
+                for item in items:
+                    if hasattr(item, 'to_dict'):
+                        print(item.to_dict())
+                    else:
+                        print(item)
+            else:
+                print(items)
+    else:
+        
+        for res in results:
+            if hasattr(res, 'to_dict'):
+                print(res.to_dict())
+            else:
+                print(res)
 
-    print("\n--- Anoka County (Multiple) ---")
-    anoka_data = anoka_scraper.search_by_address("", "117th")
-    print_results(anoka_data, "117th")
+

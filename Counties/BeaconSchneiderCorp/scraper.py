@@ -1,20 +1,31 @@
 import re
 from bs4 import BeautifulSoup
-from .BaseScraper import CountyScraper
-from .models import PropertyResult
+from Counties.BaseScraper import CountyScraper
+from Counties.models import ParcelInformation
+from Counties.BeaconSchneiderCorp.update_appids import update_appids
 
-class RamseyCountyScraper(CountyScraper):
-    BASE_URL = "https://beacon.schneidercorp.com/Application.aspx?App=RamseyCountyMN&PageType=Search"
+class BeaconSchneiderCorpCountyScraper(CountyScraper):
+    @staticmethod
+    def update_data():
+        update_appids()
 
-    def __init__(self):
+    def __init__(self, app_id):
         super().__init__()
+        self.app_id = app_id
+        self.base_url = f"https://beacon.schneidercorp.com/Application.aspx?AppID={app_id}&PageType=Search"
         self.headers['Origin'] = 'https://beacon.schneidercorp.com'
         self.headers['Alt-Used'] = 'beacon.schneidercorp.com'
-        self.headers['Referer'] = self.BASE_URL
+        self.headers['Referer'] = self.base_url
 
     def search_by_address(self, street_num, street_name):
-        print("Step 1: Fetching the search page to get tokens...")
-        response = self.scraper.get(self.BASE_URL, headers=self.headers)
+        print(f"Step 1: Fetching the search page to get tokens (AppID: {self.app_id})...")
+        response = self.scraper.get(self.base_url, headers=self.headers)
+        
+        # Update base_url if redirected (e.g. to include PageID)
+        if response.url != self.base_url:
+            self.base_url = response.url
+            self.headers['Referer'] = self.base_url
+            
         soup = BeautifulSoup(response.text, 'html.parser')
 
         hidden_fields = self._get_hidden_fields(soup)
@@ -44,43 +55,32 @@ class RamseyCountyScraper(CountyScraper):
         }
 
         print(f"Step 2: Searching for {street_num} {street_name}...")
-        post_response = self.scraper.post(self.BASE_URL, data=payload, headers=self.headers)
+        post_response = self.scraper.post(self.base_url, data=payload, headers=self.headers)
         result_soup = BeautifulSoup(post_response.text, 'html.parser')
         
         results = []
         for row in result_soup.find_all('tr'):
             cells = row.find_all('td')
             if len(cells) >= 4:
-                # 0: Checkbox/Empty
-                # 1: Parcel ID
-                # 2: Owner
-                # 3: Address
-                
-                # Replace <br> tags with " & " to separate multiple owners
                 for br in cells[2].find_all("br"):
                     br.replace_with(" & ")
 
                 parcel_id = cells[1].text.strip()
                 
-                # Extract text and remove (OWNER)
                 raw_owner = cells[2].get_text()
                 clean_owner = raw_owner.replace("(OWNER)", "")
-                
-                # Replace 3 or more whitespace characters with " & "
-                # This handles cases where names are separated by multiple spaces instead of <br>
+
                 owner_with_amp = re.sub(r'\s{3,}', ' & ', clean_owner)
                 
-                # Final cleanup of extra spaces
-                # Remove leading/trailing " & " if they were introduced by spaces at the start/end
+
                 owner = " ".join(owner_with_amp.split()).strip(" &")
                 
                 address = cells[3].text.strip()
                 
-                # Filter out header rows if they get caught (usually they have th, but just in case)
                 if parcel_id == "Parcel ID":
                     continue
                     
-                results.append(PropertyResult(
+                results.append(ParcelInformation(
                     parcel_id=parcel_id,
                     owner=owner,
                     address=address
